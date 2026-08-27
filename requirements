@@ -1,0 +1,13 @@
+pandas==2.1.4
+numpy==1.26.4
+
+prefect==3.4.12
+
+great-expectations==1.5.7
+
+sqlalchemy==2.0.43
+psycopg[binary]==3.2.9
+
+requests==2.32.5
+
+python-dotenv==1.1.1
