@@ -198,6 +198,11 @@ def validate_dataframe(
         False,
         index=df.index
     )
+    rejection_reason = pd.Series(
+        "",
+        index=df.index,
+        dtype="object"
+    )
 
     # Columnas obligatorias
     for column in required_columns:
@@ -209,7 +214,13 @@ def validate_dataframe(
                 f"obligatoria '{column}'"
             )
 
-        rejected |= df[column].isna()
+        mask = df[column].isna()
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = f"{column}_null"
 
     # Columnas específicas
     if source.upper() == "ATM":
@@ -220,7 +231,13 @@ def validate_dataframe(
                 "ATM: falta la columna 'atm_id'"
             )
 
-        rejected |= df["atm_id"].isna()
+        mask = df["atm_id"].isna()
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "id_atm_nulo"
 
     elif source.upper() == "ACH":
 
@@ -231,18 +248,29 @@ def validate_dataframe(
                 "'counterparty_bank'"
             )
 
-        rejected |= df["counterparty_bank"].isna()
+        mask = df["counterparty_bank"].isna()
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "counterparty_bank_nulo"
 
     # ==========================================================
     # DUPLICADOS
     # ==========================================================
 
     if "transaction_id" in df.columns:
-
-        rejected |= (
+        mask = (
             df["transaction_id"]
             .duplicated(keep=False)
         )
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "id_transaccion_duplicado"
 
     # ==========================================================
     # MONTO
@@ -255,8 +283,136 @@ def validate_dataframe(
             errors="coerce"
         )
 
-        rejected |= df["amount"].isna()
-        rejected |= df["amount"] < 0
+        mask_null = df["amount"].isna()
+
+        mask_negative = df["amount"] < 0
+
+        rejected |= mask_null
+        rejected |= mask_negative
+
+        rejection_reason.loc[
+            mask_null & rejection_reason.eq("")
+            ] = "monto_invalido"
+
+        rejection_reason.loc[
+            mask_negative & rejection_reason.eq("")
+            ] = "monto_negativo"
+
+    # ==========================================================
+    # TIPO DE TRANSACCIÓN
+    # ==========================================================
+
+    if "transaction_type" in df.columns:
+
+        # Normalizar temporalmente para validar
+        transaction_type = (
+            df["transaction_type"]
+            .astype("string")
+            .str.strip()
+            .str.upper()
+        )
+
+        if source.upper() in ["ATM", "API"]:
+
+            allowed_types = {
+                "DEPOSIT",
+                "WITHDRAWAL",
+                "TRANSFER",
+                "PAYMENT"
+            }
+
+        elif source.upper() == "ACH":
+
+            allowed_types = {
+                "CREDIT",
+                "DEBIT",
+                "TRANSFER"
+            }
+
+        else:
+
+            allowed_types = set()
+
+        mask = ~transaction_type.isin(
+            allowed_types
+        )
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "tipo_transaccion_invalido"
+
+        lg.info(
+            f"{source}: tipos de transacción inválidos "
+            f"detectados: {mask.sum()}"
+        )
+
+    # ==========================================================
+    # STATUS
+    # ==========================================================
+
+    if "status" in df.columns:
+        status = (
+            df["status"]
+            .astype("string")
+            .str.strip()
+            .str.upper()
+        )
+
+        allowed_status = {
+            "SUCCESS",
+            "REJECTED",
+            "PENDING",
+            "FAILED"
+        }
+
+        mask = ~status.isin(
+            allowed_status
+        )
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "status_invalido"
+
+        lg.info(
+            f"{source}: status inválidos "
+            f"detectados: {mask.sum()}"
+        )
+
+    # ==========================================================
+    # CURRENCY
+    # ==========================================================
+
+    if "currency" in df.columns:
+        currency = (
+            df["currency"]
+            .astype("string")
+            .str.strip()
+            .str.upper()
+        )
+
+        allowed_currency = {
+            "PEN",
+            "USD"
+        }
+
+        mask = ~currency.isin(
+            allowed_currency
+        )
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "moneda_invalida"
+
+        lg.info(
+            f"{source}: monedas inválidas "
+            f"detectadas: {mask.sum()}"
+        )
 
     # ==========================================================
     # FECHA
@@ -269,7 +425,13 @@ def validate_dataframe(
             errors="coerce"
         )
 
-        rejected |= parsed_dates.isna()
+        mask = parsed_dates.isna()
+
+        rejected |= mask
+
+        rejection_reason.loc[
+            mask & rejection_reason.eq("")
+            ] = "fecha_transaccion_invalida"
 
     # ==========================================================
     # SEPARACIÓN
@@ -287,6 +449,16 @@ def validate_dataframe(
         len(rejected_df) / total
         if total > 0
         else 0
+    )
+
+    # ==========================================================
+    # INFORMACIÓN DE RECHAZO
+    # ==========================================================
+
+    rejected_df["source"] = source
+
+    rejected_df["rejection_reason"] = (
+        rejection_reason.loc[rejected]
     )
 
     # ==========================================================

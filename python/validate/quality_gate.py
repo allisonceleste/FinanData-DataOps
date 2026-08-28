@@ -3,13 +3,14 @@ from logger.logger import get_logger
 
 lg = get_logger()
 
-MAX_REJECTION_RATE = 0.03
 
+WARNING_REJECTION_RATE = 0.03
+CRITICAL_REJECTION_RATE = 0.05
 
 def apply_quality_gate(
     rejection_rate: float,
     source: str
-) -> bool:
+) -> str:
     """
     Aplica el umbral de rechazo del pipeline.
 
@@ -20,7 +21,7 @@ def apply_quality_gate(
     de rechazo permite continuar hacia Processed.
     """
 
-    if rejection_rate <= MAX_REJECTION_RATE:
+    if rejection_rate <= WARNING_REJECTION_RATE:
 
         lg.info(
             f"{source}: QUALITY GATE APROBADO"
@@ -29,17 +30,30 @@ def apply_quality_gate(
         lg.info(
             f"{source}: porcentaje de rechazo "
             f"{rejection_rate:.2%} dentro del límite "
-            f"permitido ({MAX_REJECTION_RATE:.2%})"
+            f"permitido ({WARNING_REJECTION_RATE:.2%})"
         )
 
-        return True
+        return "OK"
+
+    if rejection_rate <= CRITICAL_REJECTION_RATE:
+        lg.warning(
+            f"{source}: QUALITY GATE ALERTA - "
+            f"rechazo={rejection_rate:.2%}"
+        )
+
+        lg.warning(
+            f"{source}: los registros válidos "
+            f"continúan hacia Processed"
+        )
+
+        return "WARNING"
 
     lg.error(
         f"{source}: QUALITY GATE RECHAZADO. "
         f"El porcentaje de rechazo "
         f"({rejection_rate:.2%}) supera "
         f"el máximo permitido "
-        f"({MAX_REJECTION_RATE:.2%})"
+        f"({CRITICAL_REJECTION_RATE:.2%})"
     )
 
-    return False
+    return "CRITICAL"

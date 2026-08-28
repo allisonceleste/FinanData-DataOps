@@ -4,6 +4,10 @@ import sys
 import pandas as pd
 
 import config.paths as pth
+from loading.loading_gold import load_fact_transaction
+from loading.loading_quarantine import load_quarantine
+from transformation.dimensions import resolve_dimension_keys
+from transformation.transactions import transform_transactions
 
 sys.path.insert(
     0,
@@ -63,9 +67,6 @@ def process_cdc(
     bronze_file: Path
 ):
 
-    lg.info(
-        f"{source}: iniciando CDC"
-    )
 
     cdc_df = apply_cdc(
         df,
@@ -98,7 +99,7 @@ def process_cdc(
 def process_validation(
     df: pd.DataFrame,
     source: str
-):
+) -> pd.DataFrame:
 
     lg.info(
         f"Procesando validación de {source}"
@@ -123,62 +124,100 @@ def process_validation(
             f"{source.lower()}_rejected.csv"
         )
 
-    # ==========================================================
-    # GREAT EXPECTATIONS
-    # ==========================================================
-
-    if not ge_passed:
-
-        lg.error(
-            f"{source}: validación Great Expectations "
-            f"RECHAZADA"
+        load_quarantine(
+            rejected_df
         )
 
-        lg.error(
-            f"{source}: los registros válidos "
-            f"NO continúan a Processed"
+        lg.warning(
+            f"{source}: {len(rejected_df)} registros "
+            f"enviados a cuarentena"
         )
-
-        return False
 
     # ==========================================================
     # QUALITY GATE
     # ==========================================================
 
-    quality_gate_passed = apply_quality_gate(
+    quality_status = apply_quality_gate(
         rejection_rate,
         source
     )
 
-    if not quality_gate_passed:
+    # ==========================================================
+    # QUALITY GATE CRITICAL
+    # ==========================================================
+
+    if quality_status == "CRITICAL":
 
         lg.error(
-            f"{source}: QUALITY GATE RECHAZADO"
+            f"{source}: QUALITY GATE CRÍTICO"
         )
 
         lg.error(
-            f"{source}: los registros válidos "
+            f"{source}: los datos válidos "
             f"NO continúan a Processed"
         )
 
-        return False
+        return pd.DataFrame()
+
+    # ==========================================================
+    # WARNING
+    # ==========================================================
+
+    if quality_status == "WARNING":
+
+        lg.warning(
+            f"{source}: QUALITY GATE EN WARNING"
+        )
+
+        lg.warning(
+            f"{source}: los registros válidos "
+            f"CONTINÚAN a Processed"
+        )
+
+    # ==========================================================
+    # OK
+    # ==========================================================
+
+    elif quality_status == "OK":
+
+        lg.info(
+            f"{source}: QUALITY GATE OK"
+        )
+
+        lg.info(
+            f"{source}: los registros válidos "
+            f"continúan a Processed"
+        )
 
     # ==========================================================
     # PROCESSED
     # ==========================================================
 
-    save_data(
-        valid_df,
-        pth.PROCESSED_DIR / source.lower(),
-        f"{source.lower()}_validated.csv"
-    )
+    if not valid_df.empty:
 
-    lg.info(
-        f"{source}: datos enviados a Processed"
-    )
+        save_data(
+            valid_df,
+            pth.PROCESSED_DIR / source.lower(),
+            f"{source.lower()}_validated.csv"
+        )
 
-    return True
+        lg.info(
+            f"{source}: {len(valid_df)} registros "
+            f"enviados a Processed"
+        )
 
+    else:
+
+        lg.warning(
+            f"{source}: no existen registros válidos "
+            f"para enviar a Processed"
+        )
+
+    # ==========================================================
+    # RETORNAR DATOS VÁLIDOS
+    # ==========================================================
+
+    return valid_df
 
 # ==============================================================
 # MAIN
@@ -186,7 +225,7 @@ def process_validation(
 
 def main():
 
-    lg.info("=" * 70)
+    lg.info("*" * 70)
     lg.info(
         "INICIO DEL PIPELINE FINANDATA-DATAOPS"
     )
@@ -291,19 +330,100 @@ def main():
         lg.info("INICIANDO VALIDACIÓN")
         lg.info("=" * 70)
 
-        process_validation(
+        atm_valid = process_validation(
             atm_df,
             "ATM"
         )
 
-        process_validation(
+        ach_valid = process_validation(
             ach_df,
             "ACH"
         )
 
-        process_validation(
+        api_valid = process_validation(
             api_df,
             "API"
+        )
+
+        # ======================================================
+        # TRANSFORMACIÓN
+        # ======================================================
+
+        lg.info("=" * 70)
+        lg.info("INICIANDO TRANSFORMACIÓN")
+        lg.info("=" * 70)
+
+        transactions_df = transform_transactions(
+            atm_valid,
+            ach_valid,
+            api_valid
+        )
+
+        lg.info(
+            f"TRANSFORMACIÓN FINALIZADA: "
+            f"{len(transactions_df)} registros"
+        )
+
+        # ======================================================
+        # RESOLUCIÓN DE DIMENSIONES
+        # ======================================================
+
+        lg.info("=" * 70)
+        lg.info("INICIANDO RESOLUCIÓN DE DIMENSIONES")
+        lg.info("=" * 70)
+
+        fact_ready_df, dimensional_rejected_df = resolve_dimension_keys(
+            transactions_df
+        )
+
+        lg.info(
+            f"RESOLUCIÓN DE DIMENSIONES FINALIZADA: "
+            f"{len(fact_ready_df)} registros"
+        )
+
+        # ======================================================
+        # CUARENTENA POR INTEGRIDAD DIMENSIONAL
+        # ======================================================
+
+        if not dimensional_rejected_df.empty:
+
+            save_data(
+                dimensional_rejected_df,
+                pth.REJECTED_DIR / "dimensions",
+                "dimensional_rejected.csv"
+            )
+
+            load_quarantine(
+                dimensional_rejected_df
+            )
+
+            lg.warning(
+                f"{len(dimensional_rejected_df)} registros "
+                f"enviados a cuarentena por integridad dimensional"
+            )
+
+        else:
+
+            lg.info(
+                "No existen registros rechazados "
+                "por integridad dimensional"
+            )
+
+        # ======================================================
+        # GOLD
+        # ======================================================
+
+        lg.info("=" * 70)
+        lg.info("INICIANDO CARGA GOLD")
+        lg.info("=" * 70)
+
+        load_fact_transaction(
+            fact_ready_df
+        )
+
+        lg.info(
+            f"CARGA GOLD FINALIZADA: "
+            f"{len(fact_ready_df)} registros procesados"
         )
 
         # ======================================================
@@ -314,7 +434,7 @@ def main():
         lg.info(
             "PIPELINE FINALIZADO"
         )
-        lg.info("=" * 70)
+        lg.info("*" * 70)
 
     except Exception as e:
 

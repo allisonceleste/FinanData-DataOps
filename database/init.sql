@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS gold.fact_transaction (
 
     loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    update_at TIMESTAMP,
+
     CONSTRAINT uq_fact_transaction
         UNIQUE (transaction_id, source),
 
