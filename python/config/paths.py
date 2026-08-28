@@ -1,4 +1,8 @@
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -12,3 +16,20 @@ ATM_DIR = BRONZE_DIR / "atm"
 ACH_DIR = BRONZE_DIR / "ach"
 API_DIR = BRONZE_DIR / "api"
 
+
+GENERATOR_DIR = Path(
+    os.getenv("DATA_GENERATOR_DIR")
+)
+
+ATM_SOURCE_DIR = (
+    GENERATOR_DIR / "data" / "transactions" / "atm"
+)
+
+ACH_SOURCE_DIR = (
+    GENERATOR_DIR / "data" / "transactions" / "ach"
+)
+
+API_URL = os.getenv(
+    "API",
+    "http://localhost:8000/transactions"
+)
