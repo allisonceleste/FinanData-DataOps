@@ -15,7 +15,7 @@ def ACH_extract(origen: Path) -> pd.DataFrame:
         dataframes = []
         for file in files:
             lg.info(f"Leyendo archivo: {file.name}")
-            df = pd.read_csv(file)
+            df = pd.read_csv(file, delimiter=";")
             dataframes.append(df)
             lg.info(
                 f"Archivo {file.name}: "
