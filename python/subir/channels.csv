@@ -1,0 +1,4 @@
+channel_id,channel_code,channel_name
+CH001,ATM,Cajero Automático
+CH002,MOBILE,Banca Móvil
+CH003,ACH,Transferencia ACH

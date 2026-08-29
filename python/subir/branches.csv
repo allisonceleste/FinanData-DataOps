@@ -1,0 +1,21 @@
+branch_id,branch_name,city,region,status
+BR001,Agencia Ourense,La Rioja,La Libertad,ACTIVE
+BR002,Agencia Málaga,Alicante,La Libertad,ACTIVE
+BR003,Agencia Melilla,Cádiz,Piura,ACTIVE
+BR004,Agencia Cádiz,Sevilla,Lambayeque,ACTIVE
+BR005,Agencia Almería,Lleida,Piura,ACTIVE
+BR006,Agencia Tarragona,Murcia,Cusco,ACTIVE
+BR007,Agencia Alicante,Santa Cruz de Tenerife,Arequipa,ACTIVE
+BR008,Agencia Cuenca,Álava,Arequipa,ACTIVE
+BR009,Agencia Cádiz,Zamora,Lima,ACTIVE
+BR010,Agencia Valladolid,Valencia,Arequipa,ACTIVE
+BR011,Agencia Valencia,Jaén,Lambayeque,ACTIVE
+BR012,Agencia Valencia,Madrid,La Libertad,ACTIVE
+BR013,Agencia Cantabria,La Coruña,Junín,ACTIVE
+BR014,Agencia La Rioja,Toledo,Cusco,ACTIVE
+BR015,Agencia Álava,Ciudad,Piura,ACTIVE
+BR016,Agencia Palencia,Sevilla,Arequipa,ACTIVE
+BR017,Agencia Ourense,Santa Cruz de Tenerife,Junín,ACTIVE
+BR018,Agencia Tarragona,Madrid,Piura,ACTIVE
+BR019,Agencia León,Murcia,La Libertad,ACTIVE
+BR020,Agencia Murcia,Córdoba,Junín,ACTIVE
